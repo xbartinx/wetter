@@ -1,5 +1,5 @@
 // WETTER.EXE – Offline-Cache
-const V = 'wetter-v5';
+const V = 'wetter-v6';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -65,9 +65,9 @@ legend{color:var(--hi);padding:0 6px;background:var(--bg)}
 .fkeys button span{background:var(--cy);color:#000;padding:0 3px}
 .fkeys button:active span{background:var(--ye)}
 /* Detail */
-.gbwrap{background:#2a2a35;padding:10px 12px 14px;border-radius:6px 6px 26px 6px;margin:2px 0 6px;box-shadow:inset 0 0 0 2px #111}
+.gbwrap{border:4px double #fff;margin:2px 0 6px;background:#000}
 .gbwrap .lbl{font-size:15px;color:#8888aa;letter-spacing:2px;margin-top:6px;text-align:center}
-canvas#gb{display:block;width:100%;aspect-ratio:160/144;image-rendering:pixelated;image-rendering:crisp-edges;background:#9bbc0f;border:3px solid #111}
+canvas#gb{display:block;width:100%;aspect-ratio:160/144;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;cursor:pointer}
 pre.info{margin:0;font:inherit;white-space:pre-wrap;color:var(--fg)}
 pre.info b{color:var(--hi);font-weight:normal} pre.info i{color:var(--lcy);font-style:normal} pre.info u{color:var(--ye);text-decoration:none}
 /* Boot */
@@ -101,7 +101,7 @@ pre.info b{color:var(--hi);font-weight:normal} pre.info i{color:var(--lcy);font-
   <div class="bar"><span id="dTitle">STADT.DAT</span><span id="clock2">--:--</span></div>
   <fieldset>
     <legend id="dLegend">[ ]</legend>
-    <div class="gbwrap"><canvas id="gb" width="160" height="144"></canvas><div class="lbl">PIXEL-WETTER 4-SHADE</div></div>
+    <div class="gbwrap"><canvas id="gb" width="160" height="144"></canvas></div>
     <pre class="info" id="dInfo"></pre>
   </fieldset>
   <div class="fkeys">
@@ -468,106 +468,7 @@ function line(x0, y0, x1, y1, c, w = 1) {
   for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; rect(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, w, 1, c); }
 }
 
-function draw() {
-  const c = cities[current]; const w = c && wx[c.id];
-  const cat = preview || (w ? category(w.code) : 'cloudy');
-  const isDay = preview ? true : (w ? w.isDay : true);
-  const temp = w ? w.t : 10; const wind = w ? w.wind : 10;
-  const f = S.f;
-  const GROUND = 126;
-
-  // Himmel
-  const skyMap = {clear: [0, 3], partly: [0, 3], cloudy: [1, 3], fog: [1, 2], drizzle: [1, 3], rain: [1, 3], snow: [1, 3], thunder: [2, 3]};
-  const sky = skyMap[cat][isDay ? 0 : 1];
-  rect(0, 0, 160, 144, sky);
-
-  // Sterne / Sonne / Mond
-  if (!isDay && (cat === 'clear' || cat === 'partly' || cat === 'cloudy'))
-    S.stars.forEach((s, i) => { if (cat !== 'cloudy' || i % 3 === 0) px(s.x, s.y, ((f >> 4) + i) % 5 === 0 ? 2 : (i % 2 ? 0 : 1)); });
-  if (cat === 'clear' || cat === 'partly') { if (isDay) drawSun(cat === 'clear' ? 124 : 118, 34, f); else drawMoon(124, 32); }
-
-  // Hügel (Parallax)
-  const hc = {0: [1, 2], 1: [2, 3], 2: [3, 3], 3: [2, 1]}[sky];
-  const ho = f * 0.25;
-  for (let x = 0; x < 160; x++) { const X = x + ho;
-    const h = 92 - Math.round((Math.sin(X / 23) * 9 + Math.sin(X / 9.7) * 3 + Math.sin(X / 51) * 6) / 2) * 2;
-    rect(x, h, 1, GROUND - h, hc[0]); px(x, h, hc[1]); }
-
-  // Wolken
-  const nCl = {clear: 1, partly: 2, cloudy: 5, fog: 2, drizzle: 4, rain: 5, snow: 4, thunder: 5}[cat];
-  const spd = 0.15 + Math.min(wind, 60) / 80;
-  for (let i = 0; i < nCl; i++) {
-    let key = isDay ? ({thunder: 'cStorm', rain: 'cGrey', drizzle: 'cGrey', snow: 'cDay', cloudy: 'cDay', fog: 'cDay'}[cat] || 'cDay') : 'cNight';
-    if (i % 2) key += '2';
-    const img = SPR[key];
-    const span = 160 + img.width + 20;
-    const x = ((i * 61 + f * spd * (1 + (i % 3) * 0.3)) % span) - img.width;
-    const y = (cat === 'clear' ? 16 : 6) + (i * 13) % 28;
-    g.drawImage(img, Math.round(160 - x - img.width), y);
-  }
-
-  // Büsche + Boden
-  const go = f;   // Bodengeschwindigkeit 1 px/Frame
-  for (let k = -1; k < 4; k++) { const bx = Math.round(k * 64 - (go % 64) + 20); g.drawImage(isDay ? SPR.bush : SPR.bushN, bx, GROUND - 11); }
-  for (let row = 0; row < 3; row++) { const ty = GROUND + row * 6; const off = (row % 2) * 4;
-    for (let x = -16; x < 176; x += 8) { const tx = x - (go % 8) + off;
-      rect(tx, ty, 8, 6, 2); rect(tx, ty + 5, 8, 1, 3); rect(tx + 7, ty, 1, 6, 3); px(tx, ty, 1); px(tx + 1, ty, 1); px(tx, ty + 1, 1); } }
-  rect(0, GROUND - 1, 160, 1, 3);
-  for (let x = -4; x < 164; x += 4) { const gx = x - (go % 4); px(gx, GROUND - 2, 3); }
-  if (cat === 'snow') { rect(0, GROUND - 2, 160, 2, 0); for (let x = -6; x < 166; x += 6) { const sx = x - (go % 6); px(sx, GROUND - 3, 0); px(sx + 1, GROUND - 3, 0); } }
-
-  // Figur
-  const precip = cat === 'rain' || cat === 'drizzle' || cat === 'snow' || cat === 'thunder';
-  const shiver = temp <= 0 ? ((f >> 1) & 1) : 0;
-  const bx = 38 + shiver, by = GROUND - 11 - (((f >> 3) & 1) && !shiver ? 1 : 0);
-  const map = isDay ? null : [1, 1, 2, 3];
-  sprite(BOT.head, bx, by, map);
-  sprite(((f >> 3) & 1) ? BOT.legA : BOT.legB, bx, by + 8, map);
-  if (precip) { sprite(UMB, bx + 2, by - 9, map); line(bx + 8, by - 5, bx + 8, by + 6, 3); px(bx + 7, by + 6, 3); }
-  if (temp >= 25 && cat === 'clear' && isDay) { const d = (f >> 2) % 6; px(bx - 1, by + 1 + d, 2); px(bx - 1, by + 2 + d, 2); }
-  if (temp <= 0 && !precip) { const d = (f >> 2) % 8; px(bx + 9 + d, by + 4 - (d >> 1), 0); px(bx + 10 + d, by + 4 - (d >> 1), 0); }
-
-  // Niederschlag
-  if (cat === 'rain' || cat === 'drizzle' || cat === 'thunder') {
-    const n = cat === 'drizzle' ? 30 : cat === 'rain' ? 75 : 95; const col = sky >= 2 ? 1 : (isDay ? 3 : 1);
-    const fall = cat === 'drizzle' ? 2.2 : 3.6;
-    for (let i = 0; i < n; i++) { const p = S.parts[i]; p.y += fall * p.s; p.x -= (0.6 + wind / 40) * p.s;
-      const umb = p.x > bx + 1 && p.x < bx + 15 && p.y > by - 9 && p.y < by - 4;
-      if (p.y >= GROUND - 2 || umb) { const sy = umb ? by - 10 : GROUND - 2; px(p.x - 1, sy, col); px(p.x + 1, sy, col);
-        p.y = -5 - Math.random() * 30; p.x = Math.random() * 200; continue; }
-      rect(p.x, p.y, 1, cat === 'drizzle' ? 2 : 3, col); }
-  }
-  if (cat === 'snow') {
-    const col = 0;
-    for (let i = 0; i < 70; i++) { const p = S.parts[i]; p.y += 0.45 * p.s; p.x += Math.sin((f + i * 17) / 18) * 0.35 - wind / 120;
-      if (p.y > GROUND - 2) { p.y = -4; p.x = Math.random() * 180; }
-      if (p.x < -3) p.x += 166;
-      if (p.s > 1.1) { px(p.x, p.y - 1, col); px(p.x - 1, p.y, col); px(p.x + 1, p.y, col); px(p.x, p.y + 1, col); px(p.x, p.y, isDay ? 1 : 2); }
-      else px(p.x, p.y, col); }
-  }
-  if (cat === 'fog') { const fo = (f * 0.4) % 80; g.drawImage(SPR.fog, -fo, 52); g.drawImage(SPR.fog, -fo, 8); }
-
-  // Gewitter
-  if (cat === 'thunder') {
-    if (S.flash <= 0 && Math.random() < 0.015) { S.flash = 12; let x = 30 + Math.random() * 100, y = 22; const pts = [[x, y]];
-      while (y < GROUND - 2) { y += 6 + Math.random() * 8; x += (Math.random() - 0.5) * 18; pts.push([x, Math.min(y, GROUND - 2)]); } S.bolt = pts; }
-    if (S.flash > 0) {
-      if (S.flash > 9) rect(0, 0, 160, 144, 0);
-      const bc = S.flash > 9 ? 3 : 0;
-      for (let i = 1; i < S.bolt.length; i++) line(S.bolt[i - 1][0], S.bolt[i - 1][1], S.bolt[i][0], S.bolt[i][1], bc, 2);
-      S.flash--;
-    }
-  }
-
-  // HUD
-  const tc = sky >= 2 ? 0 : 3, sc = sky >= 2 ? 2 : 1;
-  const name = c ? norm(c.name).slice(0, 22) : '';
-  txtShadow(name, 4, 4, tc, sc);
-  txtShadow(norm(preview ? SHORT[preview] : (w ? longTxt(w) : '')).slice(0, 22), 4, 11, tc, sc);
-  if (!preview || w) { const ts = w ? Math.round(temp) + '°' : '--'; txtShadow(ts, 156 - txtW(ts, 2), 4, tc, sc, 2); }
-  if (preview) txtShadow('DEMO', 156 - txtW('DEMO'), 16, tc, sc);
-  S.f++;
-}
+function draw() { const c = cities[current]; drawScene(S, 144, 126, c, c && wx[c.id], preview, true); }
 let raf = 0, last = 0;
 function loop(ts) { raf = requestAnimationFrame(loop); if (ts - last < 33) return; last = ts; draw(); }
 function startAnim() { cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
@@ -622,12 +523,13 @@ function vsprite2(rows, x, y, map) { rows.forEach((r, j) => { for (let i = 0; i 
 let M = null, miniT = 0;
 const mood = {
   override: null, until: 0, jumpT: 0, awakeUntil: 0,
-  flash(face, frames) { this.override = face; this.until = M.f + frames; },
+  t: 0,
+  flash(face, frames) { this.override = face; this.until = this.t + frames; },
   jump() { this.jumpT = 18; this.flash('happy', 40); this.poke(); },
-  poke() { this.awakeUntil = M.f + 150; }
+  poke() { this.awakeUntil = this.t + 150; }
 };
 function weatherMood(cat, isDay, t) {
-  if (!isDay && M.f > mood.awakeUntil) return 'sleep';
+  if (!isDay && mood.t > mood.awakeUntil) return 'sleep';
   if (cat === 'thunder') return 'shock';
   if (t <= 0 || cat === 'snow') return 'cold';
   if (cat === 'rain' || cat === 'drizzle') return 'sad';
@@ -649,36 +551,36 @@ function vSun(cx, cy, f) {
 }
 function vMoon(cx, cy) { for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++) if (dx * dx + dy * dy <= 49 && (dx - 4) ** 2 + (dy + 2) ** 2 > 36) vr(cx + dx, cy + dy, 1, 1, V.W); }
 function vline(x0, y0, x1, y1, col, w) { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0; for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; vr(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, w || 1, 1, col); } }
-function drawMiniInner() {
-  const H = 72, GROUND = 58, f = M.f, fc = favCity(), w = fc && wx[fc.id];
-  const cat = w ? category(w.code) : 'partly', isDay = w ? w.isDay : true, temp = w ? w.t : 12, wind = w ? w.wind : 8;
+function drawScene(st, H, GROUND, fc, w, prev, big) {
+  const M = st, f = st.f;
+  const cat = prev || (w ? category(w.code) : 'partly'), isDay = prev ? true : (w ? w.isDay : true), temp = w ? w.t : 12, wind = w ? w.wind : 8;
   const SKY = {clear: [V.B, V.b], partly: [V.B, V.b], cloudy: [V.lg, V.k], fog: [V.lg, V.dg], drizzle: [V.dg, V.k], rain: [V.dg, V.k], snow: [V.dg, V.k], thunder: [V.k, V.k]};
   const sky = SKY[cat][isDay ? 0 : 1];
   vr(0, 0, 160, H, sky);
   if (!isDay && (cat === 'clear' || cat === 'partly' || cat === 'cloudy'))
     M.stars.forEach((s, i) => { if (cat !== 'cloudy' || i % 3 === 0) vr(s.x, s.y, 1, 1, ((f >> 4) + i) % 5 === 0 ? V.dg : (i % 2 ? V.W : V.lg)); });
-  if (cat === 'clear' || cat === 'partly') { if (isDay) vSun(134, 27, f); else vMoon(134, 25); }
+  if (cat === 'clear' || cat === 'partly') { if (isDay) vSun(134, big ? 42 : 27, f); else vMoon(134, big ? 40 : 25); }
   for (let x = 0; x < 160; x++) { const X = x + f * 0.25;
-    const h = 42 - Math.round((Math.sin(X / 23) * 6 + Math.sin(X / 9.7) * 2 + Math.sin(X / 51) * 4) / 2) * 2;
+    const h = (GROUND - 16 - (big ? 14 : 0)) - Math.round((Math.sin(X / 23) * 6 + Math.sin(X / 9.7) * 2 + Math.sin(X / 51) * 4) * (big ? 1.6 : 1) / 2) * 2;
     vr(x, h, 1, GROUND - h, isDay ? V.g : V.dg); vr(x, h, 1, 1, isDay ? V.G : V.lg); }
   const nCl = {clear: 1, partly: 2, cloudy: 4, fog: 2, drizzle: 3, rain: 4, snow: 3, thunder: 4}[cat], spd = 0.15 + Math.min(wind, 60) / 80;
   for (let i = 0; i < nCl; i++) {
     let key = isDay ? ({thunder: 'storm', rain: 'grey', drizzle: 'grey', snow: 'grey'}[cat] || 'day') : 'night'; if (i % 2) key += '2';
     const img = VS[key], span = 160 + img.width + 20, x = ((i * 61 + f * spd * (1 + (i % 3) * 0.3)) % span) - img.width;
-    g.drawImage(img, Math.round(160 - x - img.width), 12 + (i * 9) % 12);
+    g.drawImage(img, Math.round(160 - x - img.width), big ? 24 + (i * 13) % 34 : 12 + (i * 9) % 12);
   }
   for (let k = -1; k < 4; k++) g.drawImage(VS.bush, Math.round(k * 64 - (f % 64) + 40), GROUND - 11);
-  for (let row = 0; row < 3; row++) { const ty = GROUND + row * 5, off = (row % 2) * 4;
+  for (let row = 0; row < Math.ceil((H - GROUND) / 5); row++) { const ty = GROUND + row * 5, off = (row % 2) * 4;
     for (let x = -16; x < 176; x += 8) { const tx = x - (f % 8) + off; vr(tx, ty, 8, 5, V.br); vr(tx, ty + 4, 8, 1, V.k); vr(tx + 7, ty, 1, 5, V.k); vr(tx, ty, 2, 1, V.R); } }
   vr(0, GROUND - 1, 160, 1, V.k);
   if (cat === 'snow') vr(0, GROUND - 2, 160, 2, V.W);
   // Figur
-  const face = (mood.override && M.f < mood.until) ? mood.override : weatherMood(cat, isDay, temp);
+  const face = (mood.override && mood.t < mood.until) ? mood.override : weatherMood(cat, isDay, temp);
   const precip = cat === 'rain' || cat === 'drizzle' || cat === 'thunder';
   const shiver = face === 'cold' ? ((f >> 1) & 1) : 0;
   let jy = 0; if (mood.jumpT > 0) { jy = Math.round(Math.sin((18 - mood.jumpT) / 18 * Math.PI) * 10); mood.jumpT--; }
   const walk = face !== 'sleep';
-  const bx = 22 + shiver, by = GROUND - 20 - jy - (walk && ((f >> 3) & 1) && !shiver && !jy ? 1 : 0);
+  const bx = (big ? 40 : 22) + shiver, by = GROUND - 20 - jy - (walk && ((f >> 3) & 1) && !shiver && !jy ? 1 : 0);
   const body = {'0': V.W, '2': V.Cy, '3': V.k};
   vsprite2(botRows(face), bx, by, body);
   vsprite2(walk ? (((f >> 3) & 1) ? BOT.legA : BOT.legB) : BOT.legB, bx, by + 16, body);
@@ -690,34 +592,42 @@ function drawMiniInner() {
   if (face === 'cool' && mood.jumpT === 0) { const d = (f >> 2) % 6; vr(bx - 2, by + 4 + d, 1, 2, V.Cy); }
   // Niederschlag
   if (precip) {
-    const n = cat === 'drizzle' ? 18 : cat === 'rain' ? 40 : 55, fall = cat === 'drizzle' ? 2 : 3.4;
+    const n = Math.round((cat === 'drizzle' ? 18 : cat === 'rain' ? 40 : 55) * (big ? 1.7 : 1)), fall = cat === 'drizzle' ? 2 : 3.4;
     for (let i = 0; i < n; i++) { const p = M.parts[i]; p.y += fall * p.s; p.x -= (0.6 + wind / 40) * p.s;
       if (p.y >= GROUND - 2) { p.y = 8 - Math.random() * 20; p.x = Math.random() * 200; continue; }
       vr(p.x, p.y, 1, cat === 'drizzle' ? 2 : 3, V.Cy); }
   }
   if (cat === 'snow') {
-    for (let i = 0; i < 45; i++) { const p = M.parts[i]; p.y += 0.45 * p.s; p.x += Math.sin((f + i * 17) / 18) * 0.35 - wind / 120;
+    for (let i = 0; i < (big ? 75 : 45); i++) { const p = M.parts[i]; p.y += 0.45 * p.s; p.x += Math.sin((f + i * 17) / 18) * 0.35 - wind / 120;
       if (p.y > GROUND - 2) { p.y = 8; p.x = Math.random() * 180; } if (p.x < -3) p.x += 166;
       if (p.s > 1.1) { vr(p.x, p.y - 1, 1, 1, V.W); vr(p.x - 1, p.y, 3, 1, V.W); vr(p.x, p.y + 1, 1, 1, V.W); } else vr(p.x, p.y, 1, 1, V.W); }
   }
   if (cat === 'fog') { const o = (f >> 2) % 2; for (let y = 14; y < GROUND; y += 2) if (((y >> 3) + (f >> 5)) % 2) for (let x = (y + o) % 4; x < 160; x += 4) vr(x, y, 2, 1, V.lg); }
   if (cat === 'thunder') {
-    if (M.flash <= 0 && Math.random() < 0.012) { M.flash = 12; let x = 50 + Math.random() * 90, y = 14; const pts = [[x, y]];
+    if (M.flash <= 0 && Math.random() < 0.012) { M.flash = 12; let x = 50 + Math.random() * 90, y = big ? 26 : 14; const pts = [[x, y]];
       while (y < GROUND - 2) { y += 5 + Math.random() * 6; x += (Math.random() - 0.5) * 14; pts.push([x, Math.min(y, GROUND - 2)]); } M.bolt = pts; }
     if (M.flash > 0) { if (M.flash > 9) vr(0, 0, 160, H, V.W);
       for (let i = 1; i < M.bolt.length; i++) vline(M.bolt[i - 1][0], M.bolt[i - 1][1], M.bolt[i][0], M.bolt[i][1], M.flash > 9 ? V.k : V.Y, 2);
       M.flash--; if (M.flash === 11) mood.flash('shock', 40); }
   }
   // Kopfzeile
-  vr(0, 0, 160, 10, V.k);
-  vtxt((fc ? norm(fc.name) : 'NEU <STADT> EINGEBEN').slice(0, 28), 3, 3, V.Y);
-  if (w) { const ts = Math.round(temp) + '°C'; vtxt(ts, 157 - txtW(ts), 3, V.W); }
-  M.f++;
+  if (big) {
+    vr(0, 0, 160, 19, V.k);
+    vtxt((fc ? norm(fc.name) : '').slice(0, 26), 3, 2, V.Y);
+    vtxt(norm(prev ? SHORT[prev] + ' (DEMO)' : (w ? longTxt(w) : '')).slice(0, 26), 3, 11, V.Cy);
+    if (w && !prev) { const ts = Math.round(temp) + '°'; vtxt(ts, 157 - txtW(ts, 2), 3, V.W, 2); }
+  } else {
+    vr(0, 0, 160, 10, V.k);
+    vtxt((fc ? norm(fc.name) : 'NEU <STADT> EINGEBEN').slice(0, 28), 3, 3, V.Y);
+    if (w) { const ts = Math.round(temp) + '°C'; vtxt(ts, 157 - txtW(ts), 3, V.W); }
+  }
+  M.f++; mood.t++;
 }
 const gm = $('gbm').getContext('2d');
-function drawMini() { const old = g; g = gm; try { drawMiniInner(); } finally { g = old; } }
+function drawMini() { const old = g; g = gm; try { const fc = favCity(); drawScene(M, 72, 58, fc, fc && wx[fc.id], null, false); } finally { g = old; } }
 function miniLoop(ts) { requestAnimationFrame(miniLoop); if (document.hidden || $('main').classList.contains('hidden') || ts - miniT < 33) return; miniT = ts; drawMini(); }
 $('gbm').addEventListener('click', () => { mood.jump(); });
+$('gb').addEventListener('click', () => { mood.jump(); });
 
 
 /* ================= Start ================= */
