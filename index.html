@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <script>
-window.onerror=function(m,s,l,c){try{var d=document.getElementById('err');if(!d){d=document.createElement('pre');d.id='err';
-d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;margin:0;padding:14px 12px 30px;background:#a00;color:#fff;font:14px Menlo,monospace;white-space:pre-wrap';
+window.onerror=function(m,s,l,c){if(/^Script error\.?$/.test(String(m))&&!l)return true;try{var d=document.getElementById('err');if(!d){d=document.createElement('pre');d.id='err';
+d.onclick=function(){d.remove()};d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;margin:0;padding:14px 12px 30px;background:#a00;color:#fff;font:14px Menlo,monospace;white-space:pre-wrap';
 (document.body||document.documentElement).appendChild(d);}d.textContent+='FEHLER: '+m+' (Zeile '+l+':'+c+')\n';
 var b=document.getElementById('boot');if(b)b.remove();}catch(e){}};
 window.addEventListener('unhandledrejection',function(e){window.onerror('Promise: '+(e.reason&&e.reason.message||e.reason),'',0,0);});
@@ -34,11 +34,20 @@ body{font-family:'VT323',ui-monospace,Menlo,monospace;font-size:21px;line-height
 .bar .demo{color:#aa0000}
 fieldset{min-width:0;flex:1;margin:4px 6px 2px;border:4px double var(--hi);padding:2px 6px 6px;overflow:auto;min-height:0}
 legend{color:var(--hi);padding:0 6px;background:var(--bg)}
-.row{display:grid;grid-template-columns:1.6em 1fr 3.4em 5.6em;gap:6px;padding:3px 3px;white-space:nowrap;cursor:pointer}
+.row{display:grid;grid-template-columns:1.6em minmax(0,1fr) 3.4em 5.6em;gap:6px;padding:1px 3px;white-space:nowrap;cursor:pointer}
 .row>span{overflow:hidden;text-overflow:clip}
 .row.head{color:var(--ye);cursor:default;border-bottom:1px dashed var(--fg)}
-.row.free{color:#5555aa}
-.row:not(.head):active{background:var(--cy);color:#000}
+.row.free{color:#6a6ac8}
+.row.free>span:nth-child(2){grid-column:2/-1}
+.city{cursor:pointer;padding:3px 0 5px;border-bottom:1px dotted #3a3aa0}
+.city:active{background:var(--cy)}
+.city:active .row,.city:active .fc span{color:#000}
+.city .row{cursor:pointer}
+.fc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:0 3px;font-size:17px;color:var(--fg);white-space:nowrap}
+.fc span{overflow:hidden}
+.fc b{color:var(--ye);font-weight:normal}
+.fc i{color:var(--hi);font-style:normal}
+.row.free{padding:6px 3px 14px}
 .row .t{text-align:right;color:var(--hi)}
 .row .c{color:var(--lcy)}
 .row.err .c{color:var(--rd)}
@@ -57,19 +66,16 @@ canvas#gb{display:block;width:100%;aspect-ratio:160/144;image-rendering:pixelate
 pre.info{margin:0;font:inherit;white-space:pre-wrap;color:var(--fg)}
 pre.info b{color:var(--hi);font-weight:normal} pre.info i{color:var(--lcy);font-style:normal} pre.info u{color:var(--ye);text-decoration:none}
 /* Boot */
-#boot{animation:bootout .3s 3s forwards;position:fixed;inset:0;background:#000;color:#aaa;padding:calc(env(safe-area-inset-top) + 14px) 14px;z-index:9;white-space:pre-wrap}
-@keyframes bootout{to{opacity:0;visibility:hidden}}
 .blink{animation:bl 1s steps(1) infinite}@keyframes bl{50%{opacity:0}}
 </style>
 </head>
 <body>
-<div id="boot"></div>
 
 <!-- Hauptliste -->
 <div class="screen" id="main">
   <div class="bar"><span>WETTER.EXE <span class="demo" id="demoTag"></span></span><span id="clock">--:--</span></div>
   <fieldset>
-    <legend>[ STÄDTE 0/10 ]</legend>
+    <legend>[ STÄDTE 0/5 ]</legend>
     <div id="list"></div>
   </fieldset>
   <div id="log"></div>
@@ -103,7 +109,7 @@ pre.info b{color:var(--hi);font-weight:normal} pre.info i{color:var(--lcy);font-
 <script>
 'use strict';
 /* ================= Daten & Speicher ================= */
-const MAX = 10;
+const MAX = 5;
 const LS_C = 'wetterdos.cities', LS_D = 'wetterdos.data';
 const SANDBOX = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
 // Speicher: in Scriptable über eine Brücke (window.__INIT__), sonst localStorage
@@ -114,7 +120,8 @@ function lsRaw(k) { try { const v = localStorage.getItem(k); return v ? JSON.par
 const USE_LS = !BRIDGE || (lsRaw(LS_TS) || 0) > (BRIDGE[LS_TS] || 0);
 let demo = false;
 let cities = lsGet(LS_C, []);
-let wx = lsGet(LS_D, {});          // id -> Wetterdaten
+let wx = lsGet(LS_D, {});
+if (cities.length > MAX) { cities = cities.slice(0, MAX); }          // id -> Wetterdaten
 let current = -1;                  // geöffnete Stadt in Detailansicht
 
 function lsGet(k, d) {
@@ -207,6 +214,14 @@ function drawLog() { const el = $('log'); el.textContent = ''; for (const l of l
 function fmtT(t) { return (t == null || isNaN(t)) ? '--' : Math.round(t) + '°'; }
 function span(txt, cls) { const s = document.createElement('span'); s.textContent = txt; if (cls) s.className = cls; return s; }
 
+const WD2 = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
+const FC = {clear: 'Son', partly: 'Hei', cloudy: 'Wol', fog: 'Neb', drizzle: 'Nie', rain: 'Reg', snow: 'Sch', thunder: 'Gew'};
+function fcCell(d) {
+  const s = document.createElement('span'); const dt = new Date(d.date + 'T12:00');
+  const b = document.createElement('b'); b.textContent = WD2[dt.getDay()] + ' ';
+  const i = document.createElement('i'); i.textContent = Math.round(d.max) + '/' + Math.round(d.min) + ' ';
+  s.append(b, i, document.createTextNode(FC[category(d.code)])); return s;
+}
 function render() {
   const L = $('list'); L.textContent = '';
   document.querySelector('#main legend').textContent = `[ STÄDTE ${cities.length}/${MAX} ]`;
@@ -214,21 +229,25 @@ function render() {
   ['NR', 'STADT', 'TEMP', 'WETTER'].forEach((t, i) => head.appendChild(span(t, i === 2 ? 't' : '')));
   head.children[2].style.color = 'inherit'; L.appendChild(head);
   for (let i = 0; i < MAX; i++) {
-    const c = cities[i]; const r = document.createElement('div'); r.className = 'row';
-    const nr = String(i + 1).padStart(2, '0');
-    if (!c) { r.classList.add('free'); r.append(span(nr), span('·· frei ··'), span(''), span(''));
-      r.onclick = () => fkey('new'); L.appendChild(r); continue; }
+    const c = cities[i]; const nr = String(i + 1).padStart(2, '0');
+    const r = document.createElement('div'); r.className = 'row';
+    if (!c) { r.classList.add('free'); r.append(span(nr), span('-- frei --')); r.onclick = () => fkey('new'); L.appendChild(r); continue; }
     const w = wx[c.id];
     r.append(span(nr), span(c.name.toUpperCase()), span(w ? fmtT(w.t) : '..', 't'), span(w ? shortTxt(w) : (c.err ? 'FEHLER' : 'lade...'), 'c'));
     if (c.err && !w) r.classList.add('err');
-    r.onclick = () => openDetail(i); L.appendChild(r);
+    const box = document.createElement('div'); box.className = 'city'; box.appendChild(r);
+    const fc = document.createElement('div'); fc.className = 'fc';
+    if (w && w.days && w.days.length > 1) w.days.slice(1, 4).forEach(d => fc.appendChild(fcCell(d)));
+    else fc.appendChild(span('Vorhersage folgt…'));
+    box.appendChild(fc);
+    box.onclick = () => openDetail(i); L.appendChild(box);
   }
 }
 
 /* ================= Befehle ================= */
 async function addCity(name) {
   if (!name) { log('Syntax: NEU <Stadt>', 'e'); return; }
-  if (cities.length >= MAX) { log('Speicher voll: max. 10 Städte. DEL <nr> zum Löschen.', 'e'); return; }
+  if (cities.length >= MAX) { log('Speicher voll: max. 5 Städte. DEL <nr> zum Löschen.', 'e'); return; }
   log('Suche "' + name + '" ...');
   let g;
   try { g = await geocode(name); } catch (e) { log('Netzwerkfehler. Bist du online?', 'e'); return; }
@@ -560,18 +579,8 @@ function makeIcon() {
 
 /* ================= Start ================= */
 function tick() { const t = hhmm(new Date()); $('clock').textContent = t; $('clock2').textContent = t; }
-function boot() {
-  const el = $('boot');
-  const lines = ['WETTER-BIOS v1.0  (C) 1993', 'Speichertest ... 640K OK', 'Lade WETTER.SYS ...', 'Lade PIXEL.DRV (4 Graustufen) ...', '', 'C:\\>WETTER.EXE'];
-  let i = 0, done = false;
-  const finish = () => { if (done) return; done = true; el.remove(); };
-  el.addEventListener('click', finish);
-  const step = () => { if (done) return; if (i < lines.length) { el.textContent += lines[i++] + '\n'; setTimeout(step, 230); } else setTimeout(finish, 350); };
-  step();
-}
 try { resetScene(); render(); tick(); setInterval(tick, 10000); } catch (e) { window.onerror(e.message, '', 0, 0); }
-boot();
-if (!cities.length) { log('WETTER-DOS bereit. Bis zu 10 Städte.', 'ok'); log('Tippe z.B.: NEU BERLIN  (F1 = Hilfe)', 'i'); }
+if (!cities.length) { log('WETTER-DOS bereit.', 'ok'); log('Tippe: NEU BERLIN', 'i'); }
 else refreshAll();
 setInterval(() => { if (!document.hidden && cities.length) refreshAll(); }, 10 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
