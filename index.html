@@ -32,9 +32,11 @@ body{font-family:'VT323',ui-monospace,Menlo,monospace;font-size:21px;line-height
 .hidden{display:none!important}
 .bar{background:var(--fg);color:#000;padding:2px 8px;display:flex;justify-content:space-between;white-space:nowrap}
 .bar .demo{color:#aa0000}
+.gbmini{margin:5px 6px 0;border:4px double #fff;padding:0;background:#000}
+canvas#gbm{display:block;width:100%;aspect-ratio:160/72;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;border:2px solid #111;cursor:pointer}
 fieldset{min-width:0;flex:1;margin:4px 6px 2px;border:4px double var(--hi);padding:2px 6px 6px;overflow:auto;min-height:0}
 legend{color:var(--hi);padding:0 6px;background:var(--bg)}
-.row{display:grid;grid-template-columns:1.6em minmax(0,1fr) 3.4em 5.6em;gap:6px;padding:1px 3px;white-space:nowrap;cursor:pointer}
+.row{display:grid;grid-template-columns:1.6em minmax(0,1fr) 3.2em 5.2em 1.3em;gap:5px;padding:1px 3px;white-space:nowrap;cursor:pointer}
 .row>span{overflow:hidden;text-overflow:clip}
 .row.head{color:var(--ye);cursor:default;border-bottom:1px dashed var(--fg)}
 .row.free{color:#6a6ac8}
@@ -46,12 +48,15 @@ legend{color:var(--hi);padding:0 6px;background:var(--bg)}
 .fc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:0 3px;font-size:17px;color:var(--fg);white-space:nowrap}
 .fc span{overflow:hidden}
 .fc b{color:var(--ye);font-weight:normal}
+.star{color:#6a6ac8;text-align:center;cursor:pointer;font-size:22px;line-height:1}
+.star.on{color:var(--ye)}
+.row.free>span:nth-child(2){grid-column:2/-1}
 .fc i{color:var(--hi);font-style:normal}
 .row.free{padding:6px 3px 14px}
 .row .t{text-align:right;color:var(--hi)}
 .row .c{color:var(--lcy)}
 .row.err .c{color:var(--rd)}
-#log{padding:2px 10px;min-height:3.6em;max-height:5.8em;overflow:hidden;white-space:pre-wrap;color:var(--fg)}
+#log{padding:2px 10px;min-height:2.4em;max-height:2.4em;overflow:hidden;white-space:pre-wrap;color:var(--fg)}
 #log .e{color:var(--rd)} #log .ok{color:var(--gr)} #log .i{color:var(--ye)}
 .cmd{display:flex;align-items:center;background:#000;padding:6px 10px;color:var(--fg)}
 .cmd input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--hi);font:inherit;font-size:21px;caret-color:var(--hi);padding:0 0 0 4px;text-transform:uppercase;border-radius:0}
@@ -74,6 +79,7 @@ pre.info b{color:var(--hi);font-weight:normal} pre.info i{color:var(--lcy);font-
 <!-- Hauptliste -->
 <div class="screen" id="main">
   <div class="bar"><span>WETTER.EXE <span class="demo" id="demoTag"></span></span><span id="clock">--:--</span></div>
+  <div class="gbmini"><canvas id="gbm" width="160" height="72"></canvas></div>
   <fieldset>
     <legend>[ STÄDTE 0/5 ]</legend>
     <div id="list"></div>
@@ -209,7 +215,7 @@ function fakeWeather(c) {
 
 /* ================= UI: Liste & Log ================= */
 const logLines = [];
-function log(msg, cls) { logLines.push({msg, cls}); while (logLines.length > 4) logLines.shift(); drawLog(); }
+function log(msg, cls) { logLines.push({msg, cls}); while (logLines.length > 2) logLines.shift(); drawLog(); }
 function drawLog() { const el = $('log'); el.textContent = ''; for (const l of logLines) { const d = document.createElement('div'); if (l.cls) d.className = l.cls; d.textContent = l.msg; el.appendChild(d); } }
 function fmtT(t) { return (t == null || isNaN(t)) ? '--' : Math.round(t) + '°'; }
 function span(txt, cls) { const s = document.createElement('span'); s.textContent = txt; if (cls) s.className = cls; return s; }
@@ -226,7 +232,7 @@ function render() {
   const L = $('list'); L.textContent = '';
   document.querySelector('#main legend').textContent = `[ STÄDTE ${cities.length}/${MAX} ]`;
   const head = document.createElement('div'); head.className = 'row head';
-  ['NR', 'STADT', 'TEMP', 'WETTER'].forEach((t, i) => head.appendChild(span(t, i === 2 ? 't' : '')));
+  ['NR', 'STADT', 'TEMP', 'WETTER', '★'].forEach((t, i) => head.appendChild(span(t, i === 2 ? 't' : '')));
   head.children[2].style.color = 'inherit'; L.appendChild(head);
   for (let i = 0; i < MAX; i++) {
     const c = cities[i]; const nr = String(i + 1).padStart(2, '0');
@@ -234,6 +240,8 @@ function render() {
     if (!c) { r.classList.add('free'); r.append(span(nr), span('-- frei --')); r.onclick = () => fkey('new'); L.appendChild(r); continue; }
     const w = wx[c.id];
     r.append(span(nr), span(c.name.toUpperCase()), span(w ? fmtT(w.t) : '..', 't'), span(w ? shortTxt(w) : (c.err ? 'FEHLER' : 'lade...'), 'c'));
+    const fav = favCity(); const st = span(fav && fav.id === c.id ? '★' : '☆', 'star' + (fav && fav.id === c.id ? ' on' : ''));
+    st.onclick = e => { e.stopPropagation(); setFav(c.id); }; r.appendChild(st);
     if (c.err && !w) r.classList.add('err');
     const box = document.createElement('div'); box.className = 'city'; box.appendChild(r);
     const fc = document.createElement('div'); fc.className = 'fc';
@@ -276,7 +284,7 @@ function delCity(n) {
 }
 function help() {
   log('NEU <stadt>  DEL <nr>  <nr> = Details', 'i');
-  log('AKTUAL  DIR  CLS  VER  ·  Zeile antippen', 'i');
+  log('FAV <nr>  AKTUAL  DIR  CLS  ·  ★ = Favorit', 'i');
 }
 function run(line) {
   line = line.trim(); if (!line) return;
@@ -290,6 +298,7 @@ function run(line) {
     case 'DIR': case 'LS':
       log(cities.length ? cities.map((c, i) => (i + 1) + ':' + c.name.toUpperCase()).join('  ') : 'Datei nicht gefunden', 'i');
       log(cities.length + ' Datei(en)   ' + (MAX - cities.length) + ' Plätze frei'); break;
+    case 'FAV': case 'STERN': { const n = parseInt(arg, 10); if (n >= 1 && n <= cities.length) { setFav(cities[n - 1].id); log(cities[n - 1].name + ' ist jetzt Favorit.', 'ok'); } else log('Syntax: FAV <nr>', 'e'); break; }
     case 'VER': log('WETTER-DOS Version 1.0  ·  Daten: Open-Meteo.com', 'i'); break;
     case 'EXIT': log('Wohin denn? Hier ist es doch schön.', 'i'); break;
     default:
@@ -577,9 +586,143 @@ function makeIcon() {
   } catch (e) {}
 }
 
+/* ================= Favoriten-Figur (DOS/VGA) ================= */
+const V = {k: '#000000', b: '#0000aa', g: '#00aa00', c: '#00aaaa', r: '#aa0000', br: '#aa5500', lg: '#aaaaaa', dg: '#555555',
+  B: '#5555ff', G: '#55ff55', Cy: '#55ffff', R: '#ff5555', Y: '#ffff55', W: '#ffffff'};
+const LS_FAV = 'wetterdos.fav';
+let favId = lsGet(LS_FAV, null);
+function favCity() { return cities.find(c => c.id === favId) || cities[0] || null; }
+function setFav(id) { favId = id; lsSet(LS_FAV, id); render(); mood.jump(); }
+function vr(x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); }
+function vtxt(s, x, y, col, sc = 1) { for (const ch of norm(s)) { const gl = FONT[ch] || FONT[' ']; for (let i = 0; i < 15; i++) if (gl[i] === '1') vr(x + (i % 3) * sc, y + ((i / 3) | 0) * sc, sc, sc, col); x += 4 * sc; } }
+function vblob(circles, fill, out, shade) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const [cx, cy, r] of circles) { x0 = Math.min(x0, cx - r); y0 = Math.min(y0, cy - r); x1 = Math.max(x1, cx + r); y1 = Math.max(y1, cy + r); }
+  const w = x1 - x0 + 3, h = y1 - y0 + 3, c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+  const inside = (a, b) => circles.some(([cx, cy, r]) => (a + x0 - 1 - cx) ** 2 + (b + y0 - 1 - cy) ** 2 <= r * r);
+  for (let b = 0; b < h; b++) for (let a = 0; a < w; a++) { if (!inside(a, b)) continue;
+    const edge = !inside(a - 1, b) || !inside(a + 1, b) || !inside(a, b - 1) || !inside(a, b + 1);
+    x.fillStyle = edge ? out : (b > h * 0.66 ? shade : fill); x.fillRect(a, b, 1, 1); }
+  return c;
+}
+const VS = {
+  day: vblob(CLOUD, V.W, V.k, V.lg), day2: vblob(CLOUD2, V.W, V.k, V.lg),
+  grey: vblob(CLOUD, V.lg, V.k, V.dg), grey2: vblob(CLOUD2, V.lg, V.k, V.dg),
+  storm: vblob(CLOUD, V.dg, V.lg, V.k), storm2: vblob(CLOUD2, V.dg, V.lg, V.k),
+  night: vblob(CLOUD, V.dg, V.lg, V.k), night2: vblob(CLOUD2, V.dg, V.lg, V.k),
+  bush: vblob([[5, 7, 5], [11, 5, 6], [17, 7, 5]], V.G, V.k, V.g)
+};
+const FACES = {
+  happy: ['.3030303', '.3300033', '.3033303'], cool: ['.3333333', '.3000003', '.3033303'], neutral: ['.3030303', '.3000003', '.3033303'],
+  sad: ['.3030303', '.3033303', '.3300033'], cold: ['.3030303', '.3000003', '.3030303'], shock: ['.3030303', '.3003003', '.3003003'],
+  sleep: ['.3000003', '.3330333', '.3000003'], think: ['.3030303', '.3000003', '.3000303']
+};
+function botRows(face) { const h = BOT.head.slice(); const f = FACES[face] || FACES.neutral; h[3] = f[0]; h[4] = f[1]; h[5] = f[2]; return h; }
+function vsprite2(rows, x, y, map) { rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const ch = r[i]; if (ch === '.') continue; vr(x + i * 2, y + j * 2, 2, 2, map[ch]); } }); }
+let M = null, miniT = 0;
+const mood = {
+  override: null, until: 0, jumpT: 0, awakeUntil: 0,
+  flash(face, frames) { this.override = face; this.until = M.f + frames; },
+  jump() { this.jumpT = 18; this.flash('happy', 40); this.poke(); },
+  poke() { this.awakeUntil = M.f + 150; }
+};
+function weatherMood(cat, isDay, t) {
+  if (!isDay && M.f > mood.awakeUntil) return 'sleep';
+  if (cat === 'thunder') return 'shock';
+  if (t <= 0 || cat === 'snow') return 'cold';
+  if (cat === 'rain' || cat === 'drizzle') return 'sad';
+  if (cat === 'fog') return 'think';
+  if (cat === 'cloudy') return 'neutral';
+  if (cat === 'clear' && isDay && t >= 20) return 'cool';
+  return 'happy';
+}
+function resetMini() {
+  const parts = []; for (let i = 0; i < 80; i++) parts.push({x: Math.random() * 200, y: Math.random() * 60, s: 0.6 + Math.random() * 0.8});
+  const stars = []; for (let i = 0; i < 22; i++) stars.push({x: (Math.random() * 158) | 0, y: 12 + ((Math.random() * 30) | 0)});
+  M = {f: 0, parts, stars, flash: 0, bolt: null};
+}
+function vSun(cx, cy, f) {
+  const ph = (f >> 3) & 1;
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + (ph ? Math.PI / 8 : 0); for (let d = 11; d <= 14 + ph; d++) vr(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1, 1, V.Y); }
+  for (let dy = -8; dy <= 8; dy++) for (let dx = -8; dx <= 8; dx++) { const d = dx * dx + dy * dy; if (d <= 64) vr(cx + dx, cy + dy, 1, 1, d > 52 ? V.br : V.Y); }
+  vr(cx - 4, cy - 4, 2, 1, V.W); vr(cx - 4, cy - 3, 1, 1, V.W);
+}
+function vMoon(cx, cy) { for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++) if (dx * dx + dy * dy <= 49 && (dx - 4) ** 2 + (dy + 2) ** 2 > 36) vr(cx + dx, cy + dy, 1, 1, V.W); }
+function vline(x0, y0, x1, y1, col, w) { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0; for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; vr(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, w || 1, 1, col); } }
+function drawMiniInner() {
+  const H = 72, GROUND = 58, f = M.f, fc = favCity(), w = fc && wx[fc.id];
+  const cat = w ? category(w.code) : 'partly', isDay = w ? w.isDay : true, temp = w ? w.t : 12, wind = w ? w.wind : 8;
+  const SKY = {clear: [V.B, V.b], partly: [V.B, V.b], cloudy: [V.lg, V.k], fog: [V.lg, V.dg], drizzle: [V.dg, V.k], rain: [V.dg, V.k], snow: [V.dg, V.k], thunder: [V.k, V.k]};
+  const sky = SKY[cat][isDay ? 0 : 1];
+  vr(0, 0, 160, H, sky);
+  if (!isDay && (cat === 'clear' || cat === 'partly' || cat === 'cloudy'))
+    M.stars.forEach((s, i) => { if (cat !== 'cloudy' || i % 3 === 0) vr(s.x, s.y, 1, 1, ((f >> 4) + i) % 5 === 0 ? V.dg : (i % 2 ? V.W : V.lg)); });
+  if (cat === 'clear' || cat === 'partly') { if (isDay) vSun(134, 27, f); else vMoon(134, 25); }
+  for (let x = 0; x < 160; x++) { const X = x + f * 0.25;
+    const h = 42 - Math.round((Math.sin(X / 23) * 6 + Math.sin(X / 9.7) * 2 + Math.sin(X / 51) * 4) / 2) * 2;
+    vr(x, h, 1, GROUND - h, isDay ? V.g : V.dg); vr(x, h, 1, 1, isDay ? V.G : V.lg); }
+  const nCl = {clear: 1, partly: 2, cloudy: 4, fog: 2, drizzle: 3, rain: 4, snow: 3, thunder: 4}[cat], spd = 0.15 + Math.min(wind, 60) / 80;
+  for (let i = 0; i < nCl; i++) {
+    let key = isDay ? ({thunder: 'storm', rain: 'grey', drizzle: 'grey', snow: 'grey'}[cat] || 'day') : 'night'; if (i % 2) key += '2';
+    const img = VS[key], span = 160 + img.width + 20, x = ((i * 61 + f * spd * (1 + (i % 3) * 0.3)) % span) - img.width;
+    g.drawImage(img, Math.round(160 - x - img.width), 12 + (i * 9) % 12);
+  }
+  for (let k = -1; k < 4; k++) g.drawImage(VS.bush, Math.round(k * 64 - (f % 64) + 40), GROUND - 11);
+  for (let row = 0; row < 3; row++) { const ty = GROUND + row * 5, off = (row % 2) * 4;
+    for (let x = -16; x < 176; x += 8) { const tx = x - (f % 8) + off; vr(tx, ty, 8, 5, V.br); vr(tx, ty + 4, 8, 1, V.k); vr(tx + 7, ty, 1, 5, V.k); vr(tx, ty, 2, 1, V.R); } }
+  vr(0, GROUND - 1, 160, 1, V.k);
+  if (cat === 'snow') vr(0, GROUND - 2, 160, 2, V.W);
+  // Figur
+  const face = (mood.override && M.f < mood.until) ? mood.override : weatherMood(cat, isDay, temp);
+  const precip = cat === 'rain' || cat === 'drizzle' || cat === 'thunder';
+  const shiver = face === 'cold' ? ((f >> 1) & 1) : 0;
+  let jy = 0; if (mood.jumpT > 0) { jy = Math.round(Math.sin((18 - mood.jumpT) / 18 * Math.PI) * 10); mood.jumpT--; }
+  const walk = face !== 'sleep';
+  const bx = 22 + shiver, by = GROUND - 20 - jy - (walk && ((f >> 3) & 1) && !shiver && !jy ? 1 : 0);
+  const body = {'0': V.W, '2': V.Cy, '3': V.k};
+  vsprite2(botRows(face), bx, by, body);
+  vsprite2(walk ? (((f >> 3) & 1) ? BOT.legA : BOT.legB) : BOT.legB, bx, by + 16, body);
+  if (precip) { vsprite2(UMB, bx + 2, by - 16, {'2': V.R, '3': V.k}); vr(bx + 15, by - 8, 2, 20, V.k); }
+  const tx = bx + 20, ty = by - 2;
+  if (face === 'sleep') { const z = (f >> 4) % 3; vtxt('Z', tx, ty - z * 3, V.W); if (z > 0) vtxt('Z', tx + 5, ty - 6 - z * 2, V.W); }
+  if (face === 'think') vtxt('?', tx, ty, V.Y);
+  if (face === 'shock' && (f >> 3) & 1) vtxt('!', tx, ty, V.R);
+  if (face === 'cool' && mood.jumpT === 0) { const d = (f >> 2) % 6; vr(bx - 2, by + 4 + d, 1, 2, V.Cy); }
+  // Niederschlag
+  if (precip) {
+    const n = cat === 'drizzle' ? 18 : cat === 'rain' ? 40 : 55, fall = cat === 'drizzle' ? 2 : 3.4;
+    for (let i = 0; i < n; i++) { const p = M.parts[i]; p.y += fall * p.s; p.x -= (0.6 + wind / 40) * p.s;
+      if (p.y >= GROUND - 2) { p.y = 8 - Math.random() * 20; p.x = Math.random() * 200; continue; }
+      vr(p.x, p.y, 1, cat === 'drizzle' ? 2 : 3, V.Cy); }
+  }
+  if (cat === 'snow') {
+    for (let i = 0; i < 45; i++) { const p = M.parts[i]; p.y += 0.45 * p.s; p.x += Math.sin((f + i * 17) / 18) * 0.35 - wind / 120;
+      if (p.y > GROUND - 2) { p.y = 8; p.x = Math.random() * 180; } if (p.x < -3) p.x += 166;
+      if (p.s > 1.1) { vr(p.x, p.y - 1, 1, 1, V.W); vr(p.x - 1, p.y, 3, 1, V.W); vr(p.x, p.y + 1, 1, 1, V.W); } else vr(p.x, p.y, 1, 1, V.W); }
+  }
+  if (cat === 'fog') { const o = (f >> 2) % 2; for (let y = 14; y < GROUND; y += 2) if (((y >> 3) + (f >> 5)) % 2) for (let x = (y + o) % 4; x < 160; x += 4) vr(x, y, 2, 1, V.lg); }
+  if (cat === 'thunder') {
+    if (M.flash <= 0 && Math.random() < 0.012) { M.flash = 12; let x = 50 + Math.random() * 90, y = 14; const pts = [[x, y]];
+      while (y < GROUND - 2) { y += 5 + Math.random() * 6; x += (Math.random() - 0.5) * 14; pts.push([x, Math.min(y, GROUND - 2)]); } M.bolt = pts; }
+    if (M.flash > 0) { if (M.flash > 9) vr(0, 0, 160, H, V.W);
+      for (let i = 1; i < M.bolt.length; i++) vline(M.bolt[i - 1][0], M.bolt[i - 1][1], M.bolt[i][0], M.bolt[i][1], M.flash > 9 ? V.k : V.Y, 2);
+      M.flash--; if (M.flash === 11) mood.flash('shock', 40); }
+  }
+  // Kopfzeile
+  vr(0, 0, 160, 10, V.k);
+  vtxt((fc ? norm(fc.name) : 'NEU <STADT> EINGEBEN').slice(0, 28), 3, 3, V.Y);
+  if (w) { const ts = Math.round(temp) + '°C'; vtxt(ts, 157 - txtW(ts), 3, V.W); }
+  M.f++;
+}
+const gm = $('gbm').getContext('2d');
+function drawMini() { const old = g; g = gm; try { drawMiniInner(); } finally { g = old; } }
+function miniLoop(ts) { requestAnimationFrame(miniLoop); if (document.hidden || $('main').classList.contains('hidden') || ts - miniT < 33) return; miniT = ts; drawMini(); }
+$('gbm').addEventListener('click', () => { mood.jump(); });
+
+
 /* ================= Start ================= */
 function tick() { const t = hhmm(new Date()); $('clock').textContent = t; $('clock2').textContent = t; }
-try { resetScene(); render(); tick(); setInterval(tick, 10000); } catch (e) { window.onerror(e.message, '', 0, 0); }
+try { resetScene(); resetMini(); render(); tick(); setInterval(tick, 10000); requestAnimationFrame(miniLoop); } catch (e) { window.onerror(e.message, '', 0, 0); }
 if (!cities.length) { log('WETTER-DOS bereit.', 'ok'); log('Tippe: NEU BERLIN', 'i'); }
 else refreshAll();
 setInterval(() => { if (!document.hidden && cities.length) refreshAll(); }, 10 * 60 * 1000);
